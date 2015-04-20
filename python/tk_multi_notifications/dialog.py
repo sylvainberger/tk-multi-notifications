@@ -65,6 +65,7 @@ class AppDialog(QtGui.QWidget):
         #  Create the layout
         self.create_layout()
         self.create_connections()
+        self.update_status(self._app.service_running())
 
     def create_layout(self):
         # Create a main layout
