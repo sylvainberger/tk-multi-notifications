@@ -112,9 +112,6 @@ class TankNotificationWidget(QtGui.QWidget):
         self._start_pos = QtCore.QPoint((desktop_rect.width() - 10), 30)
         self._end_pos = self._start_pos - QtCore.QPoint(self.width(), 0)
         self.move(self._start_pos)
-        print self._start_pos
-        print self._end_pos
-        print self.width()
 
     def animate_widget(self):
         anim = QtCore.QPropertyAnimation(self, "pos")

@@ -56,7 +56,6 @@ class AppDialog(QtGui.QWidget):
         # it is often handy to keep a reference to this. You can get it via the following method:
         self._app = sgtk.platform.current_bundle()
         
-        print self._app
         # via the self._app handle we can for example access:
         # - The engine, via self._app.engine
         # - A Shotgun API instance, via self._app.shotgun
@@ -102,7 +101,6 @@ class AppDialog(QtGui.QWidget):
     def start_or_stop_service(self):
         self.start_button.setEnabled(False)
         running = self._app.service_running()
-        print 'service running?', running
         if self._app.service_running():
             self._app.stop_service()
         else:
@@ -111,7 +109,6 @@ class AppDialog(QtGui.QWidget):
         self.start_button.setEnabled(True)
 
     def update_status(self, status):
-        print 'Status', status
         button_text = self.START_TEXT
         status_text = self.STATUS_STOPPED
         if status:
