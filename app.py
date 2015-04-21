@@ -29,7 +29,7 @@ class MultiNotifications(Application):
 
         # Initialize and Start the Notifications Service
         self._service = tk_multi_notifications.TankNotificationsService(self)
-        
+        self.start_service()
         # now register a *command*, which is normally a menu entry of some kind on a Shotgun
         # menu (but it depends on the engine). The engine will manage this command and 
         # whenever the user requests the command, it will call out to the callback.
