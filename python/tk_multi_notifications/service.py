@@ -16,6 +16,9 @@ import random
 from functools import partial
 
 from sgtk.platform.qt import QtCore, QtGui
+from events_filter import EventsFilter
+from events_filter import TaskStatusChangedFilter
+from events_filter import NewPublishFilter
 from .ui import resources_rc
 
 import tank
@@ -32,7 +35,18 @@ class TankNotificationsService(object):
         Construction
         """
         self._app = app
-        self._widget = TankNotificationWidget(self._app)
+        # Get the task daa required
+        task = self._find_task(self._app.context.task['id'])
+        # Initialize the event filter instance
+        self._event_filter = EventsFilter(self._app.shotgun, task)
+        self._event_filter.add_filter(TaskStatusChangedFilter)
+        self._event_filter.add_filter(NewPublishFilter)
+        # Initialize the notification widget
+        self._widget = TankNotificationWidget(self, self._event_filter)
+
+    def _find_task(self, task_id):
+        """ Return the task data of of the provided task id """
+        return self._app.shotgun.find_one("Task", filters=[['id', 'is', task_id]], fields=['id', 'entity'])
 
     def is_running(self):
         """ Return True if the service is running """
@@ -74,20 +88,28 @@ class ClickableLabel(QtGui.QLabel):
 
 class TankNotificationWidget(QtGui.QWidget):
     """ Widget displaying the notifications """
-    def __init__(self, app):
+    def __init__(self, parent, event_filter):
         super(TankNotificationWidget, self).__init__()
         self.setWindowFlags(QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)
         self._timer = None
         self._timer_delay = 5000
         self._active = False
-        self._app = app
+        self.parent = parent
+        self._event_filter = event_filter
         self._message_displaying = False
-        self._last_event_id = 0
         self.create_layout()
         self.create_connections()
         # Start a timer that will check for new notifications when the timer runs out
         self.create_timer()
-        
+            
+    @property
+    def _app(self):
+        return self.parent._app
+
+    @property
+    def context(self):
+        return self._app.context
+
     def create_layout(self):
         """ Create the main layout for this widget """
         # Create the main layout
@@ -141,22 +163,16 @@ class TankNotificationWidget(QtGui.QWidget):
         """ Launch a thread that will query Shotgun to get notifications and display them """
         if not self._active:
             return
-        thread = NotificationThread(self, self._app.context, self._last_event_id)
+        thread = NotificationThread(self)
         # This connection will show a notification message if a notification
         # is found by the thread
         thread.notification_message.connect(self.show_message)
-        # connect the last_event signal to be able to store the last event parsed
-        thread.last_event.connect(self.store_last_event)
         # When the thread is finished, start a new timer that will 
         # execute this method again at the end of the timer
         thread.finished.connect(partial(self.start_timer, self._timer_delay))
         # Start the thread
         thread.start()
-
-    @QtCore.Slot(int)
-    def store_last_event(self, event_id):
-        self._last_event_id = event_id
-
+    
     @QtCore.Slot(unicode)
     def show_message(self, message):
         """ Show a notification message """
@@ -190,7 +206,7 @@ class TankNotificationWidget(QtGui.QWidget):
 
     def open_shotgun(self):
         """ Open the shotgun website at the current context """
-        url = self._app.context.shotgun_url
+        url = self.context.shotgun_url
         QtGui.QDesktopServices.openUrl(QtCore.QUrl(url))
 
     def mouseReleaseEvent(self, event):
@@ -205,13 +221,10 @@ class TankNotificationWidget(QtGui.QWidget):
 class NotificationThread(QtCore.QThread):
     """  Main thread loop querying Shotgun to get new data to notify"""
     notification_message = QtCore.Signal(unicode)
-    last_event = QtCore.Signal(int)
 
-    def __init__(self, parent, context, last_event_id):
+    def __init__(self, parent):
         super(NotificationThread, self).__init__(parent)
-        self.sg = parent._app.shotgun
-        self.context = context
-        self.last_event_id = last_event_id
+        self.parent = parent
 
     def start(self):
         log('Starting thread...')
@@ -219,52 +232,22 @@ class NotificationThread(QtCore.QThread):
         self.setPriority(QtCore.QThread.LowPriority)
 
     def run(self):
-        # Check if there is a new event in Shotgun
-        events = self.find_events()
-        # Emit the last event so we can store it in the parent and push it back again in the next thread
-        self.last_event.emit(self.last_event_id)
-        if not events:
+        # Run the event filter
+        self.parent._event_filter.run()
+        # loop all filters results
+        messages = []
+        for _filter in self.parent._event_filter.filters():
+            for message in _filter.get_messages():
+                messages.append(message)
+        
+        # Return if we got nothing
+        if not messages:
             return
-        # Emit the notification message
-        if len(events) == 1:
-            e = events[0]
-            if e['event_type'] == 'Shotgun_Task_Change':
-                message = 'Status of task %s changed to %s' % (e['entity']['name'], e['meta']['new_value'])
-            else:
-                message = 'New activity in task %s' % e['entity']['name']
+
+        print messages
+        # Show the message or the number of notification since the last update
+        if len(messages) == 1:
+            msg = messages[0]
         else:
-            message = '%d new activity in task %s' % (len(events), self.context.task['name'])
-        self.notification_message.emit(message)
-
-    def find_events(self):
-        """ Function returning all the event for the current task_id since the last check """
-        valid_events = ['Shotgun_Note_New', 'Shotgun_Task_Change']
-        # ---------------------------------------------------------------------------------------------
-        # get the id of the latest EventLogEntry
-        # ---------------------------------------------------------------------------------------------
-        if not self.last_event_id:
-            result = self.sg.find_one("EventLogEntry",filters=[], fields=['id'], order=[{'column':'created_at','direction':'desc'}])    
-            self.last_event_id = result['id']
-        log('beginning processing starting at event #%d' % self.last_event_id)
-
-        # ---------------------------------------------------------------------------------------------
-        # find all Events since the last check
-        # ---------------------------------------------------------------------------------------------
-        events = []
-        task_id = self.context.task['id']
-        if not task_id:
-            return events
-
-        # Find all the lastest event for the task id
-        for event in self.sg.find("EventLogEntry",filters=[['id', 'greater_than', self.last_event_id], ['entity', 'is', { "type": "Task", "id": task_id }]], 
-                                fields=['id','event_type','attribute_name','meta','entity'], 
-                                order=[{'column':'created_at','direction':'asc'}], filter_operator='all'):
-            log('processing event id %d' % event['id'])
-
-            # Ignore invalid event types
-            if event['event_type'] in valid_events:
-                print event
-                events.append(event)
-        if events:
-            self.last_event_id = events[-1]['id']
-        return events
+            msg = '%d new activity in task %s' % (len(messages), self.parent.context.task['name'])
+        self.notification_message.emit(msg)
