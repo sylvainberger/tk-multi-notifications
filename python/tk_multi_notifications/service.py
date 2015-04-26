@@ -19,6 +19,7 @@ from sgtk.platform.qt import QtCore, QtGui
 from events_filter import EventsFilter
 from events_filter import TaskStatusChangedFilter
 from events_filter import NewPublishFilter
+from events_filter import NewNoteFilter
 from .ui import resources_rc
 
 import tank
@@ -41,6 +42,7 @@ class TankNotificationsService(object):
         self._event_filter = EventsFilter(self._app.shotgun, task)
         self._event_filter.add_filter(TaskStatusChangedFilter)
         self._event_filter.add_filter(NewPublishFilter)
+        self._event_filter.add_filter(NewNoteFilter)
         # Initialize the notification widget
         self._widget = TankNotificationWidget(self, self._event_filter)
 

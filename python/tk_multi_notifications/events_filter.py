@@ -170,8 +170,52 @@ class NewPublishFilter(EventFilterBase):
         else:
             message = 'A new element "%s" was published for entity %s' % (publish['code'], entity_name)
         return message
+       
+
+class NewNoteFilter(EventFilterBase):
+    """ Filter new notes events linked to the current task """
+    event_type = 'Shotgun_Note_New'
+
+    def __init__(self, *args, **kwargs):
+        super(NewNoteFilter, self).__init__(*args, **kwargs)
+        self.statuses = None
+
+    def _find(self):
+        """ Find all the valid events """
+        events_data = []
+        for event in self._find_events():
+            note = self.sg.find_one('Note', 
+                                        filters=[
+                                            ['id', 'is', event['entity']['id']],       
+                                            ['tasks', 'is', { 'type': 'Task', 'id': self.task['id'] }],
+                                        ],
+                                        fields=['id', 'subject', 'content', 'user', 'tasks', 'note_links']
+                                    )
+            if not note:
+                continue
+            events_data.append((event, note))
+        return events_data
+
+    def _message(self, event_data):
+        """ build the message for the provided event """
+        event, note = event_data
+        user = note['user']['name']
+        note_link = note['note_links']
+        if isinstance(note_link, list):
+            note_link = note_link[-1]['name']
+        message = 'A new note by %s was added on %s' % (user, note_link)
         return message
         
 
+
+
+  # def find_note_on_task(task_id):
+  #   notes = sg.find("Note", 
+  #                       filters=[['tasks', 'is', {'type': 'Task', 'id': task_id}]],
+  #                       fields=['id', 'subject', 'content', 'user', 'tasks', 'note_links'])      
+
+if __name__ == '__main__':
+    from tests import test_events_filters
+    test_events_filters.test()
 
             
