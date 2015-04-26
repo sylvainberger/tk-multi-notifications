@@ -1,8 +1,8 @@
-""" 
+"""
 This module contains class that handle querying
 the shotgun event database and return an object
 that will display a notification
-""" 
+"""
 import time
 
 def log(msg):
@@ -36,7 +36,7 @@ class EventsFilter(object):
 
     def get_last_event_id(self):
         """ Get the last event id from the event table """
-        result = self.sg.find_one('EventLogEntry', filters=[], fields=['id'], order=[{'column':'id', 'direction':'desc'}])    
+        result = self.sg.find_one('EventLogEntry', filters=[], fields=['id'], order=[{'column':'id', 'direction':'desc'}])
         self.last_event_id = result['id']
 
     def run(self):
@@ -74,8 +74,8 @@ class EventFilterBase(object):
                                     ['event_type', 'is', self.event_type],
                                     ['id', 'greater_than', self.last_event_id],
                                 ],
-                                fields=['id', 'event_type', 'attribute_name', 'meta', 'entity'], 
-                                order=[{'column':'created_at', 'direction':'asc'}], 
+                                fields=['id', 'event_type', 'attribute_name', 'meta', 'entity'],
+                                order=[{'column':'created_at', 'direction':'asc'}],
                                 filter_operator='all')
         return events
 
@@ -102,9 +102,9 @@ class TaskStatusChangedFilter(EventFilterBase):
     def __init__(self, *args, **kwargs):
         super(TaskStatusChangedFilter, self).__init__(*args, **kwargs)
         self.statuses = None
-        
+
     def get_statuses(self):
-        """ Get all the statuses from the database """ 
+        """ Get all the statuses from the database """
         if self.statuses is None:
             self.statuses = {}
             for status in self.sg.find('Status', filters=[], fields=['name', 'code']):
@@ -117,7 +117,7 @@ class TaskStatusChangedFilter(EventFilterBase):
 
     def _find(self):
         """ Find all the valid events """
-        # Get all thes statuses 
+        # Get all thes statuses
         self.get_statuses()
         # Store the event and the status
         events_data = []
@@ -128,14 +128,14 @@ class TaskStatusChangedFilter(EventFilterBase):
             status = self.get_status_from_code(event['meta']['new_value'])
             events_data.append((event, status))
         return events_data
-        
+
     def _message(self, event_data):
         """ build the message for the provided event """
         # extract the event and the status from the tuple
         event, status = event_data
         message = 'Status of task %s %s changed to %s' % (self.task['entity']['name'], event['entity']['name'], status)
         return message
-        
+
 
 class NewPublishFilter(EventFilterBase):
     """ Filter new publishes linked to the current task """
@@ -152,10 +152,10 @@ class NewPublishFilter(EventFilterBase):
             # Find the matching publish document
             publish = self.sg.find_one("PublishedFile",
                                     filters=[['id', 'is', event['entity']['id']]],
-                                    fields=['id','published_file_type', 'code', 'entity'], 
-                                    filter_operator='all',                                
+                                    fields=['id','published_file_type', 'code', 'entity'],
+                                    filter_operator='all',
                                  )
-            # Only keep the publish if it is linked to the task or the task entity 
+            # Only keep the publish if it is linked to the task or the task entity
             if publish['entity'] and publish['entity']['id'] == self.task['entity']['id']:
                 events_data.append((event, publish))
         return events_data
@@ -166,11 +166,11 @@ class NewPublishFilter(EventFilterBase):
         publish_type = publish['published_file_type']
         entity_name = publish['entity']['name']
         if publish_type is not None:
-            message = 'A new %s "%s" was published for entity %s' % (publish_type['name'], publish['code'], entity_name)    
+            message = 'A new %s "%s" was published for entity %s' % (publish_type['name'], publish['code'], entity_name)
         else:
             message = 'A new element "%s" was published for entity %s' % (publish['code'], entity_name)
         return message
-       
+
 
 class NewNoteFilter(EventFilterBase):
     """ Filter new notes events linked to the current task """
@@ -184,9 +184,9 @@ class NewNoteFilter(EventFilterBase):
         """ Find all the valid events """
         events_data = []
         for event in self._find_events():
-            note = self.sg.find_one('Note', 
+            note = self.sg.find_one('Note',
                                         filters=[
-                                            ['id', 'is', event['entity']['id']],       
+                                            ['id', 'is', event['entity']['id']],
                                             ['tasks', 'is', { 'type': 'Task', 'id': self.task['id'] }],
                                         ],
                                         fields=['id', 'subject', 'content', 'user', 'tasks', 'note_links']
@@ -205,17 +205,3 @@ class NewNoteFilter(EventFilterBase):
             note_link = note_link[-1]['name']
         message = 'A new note by %s was added on %s' % (user, note_link)
         return message
-        
-
-
-
-  # def find_note_on_task(task_id):
-  #   notes = sg.find("Note", 
-  #                       filters=[['tasks', 'is', {'type': 'Task', 'id': task_id}]],
-  #                       fields=['id', 'subject', 'content', 'user', 'tasks', 'note_links'])      
-
-if __name__ == '__main__':
-    from tests import test_events_filters
-    test_events_filters.test()
-
-            

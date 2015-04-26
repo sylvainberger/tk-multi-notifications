@@ -1,11 +1,11 @@
 # Copyright (c) 2013 Shotgun Software Inc.
-# 
+#
 # CONFIDENTIAL AND PROPRIETARY
-# 
-# This work is provided "AS IS" and subject to the Shotgun Pipeline Toolkit 
+#
+# This work is provided "AS IS" and subject to the Shotgun Pipeline Toolkit
 # Source Code License included in this distribution package. See LICENSE.
-# By accessing, using, copying or modifying this work you indicate your 
-# agreement to the Shotgun Pipeline Toolkit Source Code License. All rights 
+# By accessing, using, copying or modifying this work you indicate your
+# agreement to the Shotgun Pipeline Toolkit Source Code License. All rights
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
 # by importing QT from sgtk rather than directly, we ensure that
@@ -68,7 +68,7 @@ class TankNotificationsService(object):
     def stop(self):
         log('Notifications service stopping ...')
         self._widget.stop()
-        return self._widget._active    
+        return self._widget._active
 
     def restart(self):
         if self.is_running():
@@ -103,7 +103,7 @@ class TankNotificationWidget(QtGui.QWidget):
         self.create_connections()
         # Start a timer that will check for new notifications when the timer runs out
         self.create_timer()
-            
+
     @property
     def _app(self):
         return self.parent._app
@@ -133,7 +133,7 @@ class TankNotificationWidget(QtGui.QWidget):
         self.logo.clicked.connect(self.open_shotgun)
 
     def start(self):
-        """ 
+        """
         Check for notification, this will start an infinite loop
         of notification check > start a timer > notification check > etc
         """
@@ -141,7 +141,7 @@ class TankNotificationWidget(QtGui.QWidget):
         self.check_for_notifications()
 
     def stop(self):
-        """ Set the self._active member value False, 
+        """ Set the self._active member value False,
         After the timer start is checking of this valueif it is off
         the timer > check loop will stop
         """
@@ -169,12 +169,12 @@ class TankNotificationWidget(QtGui.QWidget):
         # This connection will show a notification message if a notification
         # is found by the thread
         thread.notification_message.connect(self.show_message)
-        # When the thread is finished, start a new timer that will 
+        # When the thread is finished, start a new timer that will
         # execute this method again at the end of the timer
         thread.finished.connect(partial(self.start_timer, self._timer_delay))
         # Start the thread
         thread.start()
-    
+
     @QtCore.Slot(unicode)
     def show_message(self, message):
         """ Show a notification message """
@@ -186,11 +186,11 @@ class TankNotificationWidget(QtGui.QWidget):
         self.animate_widget()
 
     def position_widget(self):
-        """ 
-        Place the widget just ouside the right corner of desktop 
+        """
+        Place the widget just ouside the right corner of desktop
         Define the final position, in the top right corner of the desktop
         """
-        desktop_rect = QtGui.QApplication.desktop().screenGeometry()        
+        desktop_rect = QtGui.QApplication.desktop().screenGeometry()
         self._start_pos = QtCore.QPoint((desktop_rect.width() - 10), 30)
         self._end_pos = self._start_pos - QtCore.QPoint(self.width(), 0)
         self.move(self._start_pos)
@@ -241,7 +241,7 @@ class NotificationThread(QtCore.QThread):
         for _filter in self.parent._event_filter.filters():
             for message in _filter.get_messages():
                 messages.append(message)
-        
+
         # Return if we got nothing
         if not messages:
             return

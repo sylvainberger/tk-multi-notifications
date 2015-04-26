@@ -1,4 +1,4 @@
-import os 
+import os
 import sys
 
 # add path to be able to import the modules we need for the tests
@@ -17,14 +17,14 @@ from events_filter import NewPublishFilter
 from events_filter import NewNoteFilter
 
 SERVER_PATH = 'https://sberger.shotgunstudio.com' # make sure to change this to https if your studio uses it.
-SCRIPT_USER = 'Sandbox'     
+SCRIPT_USER = 'Sandbox'
 SCRIPT_KEY = '479f0f7fe7f3a2e935ec99d61b760139f73890bd0e8d09edb417eaac65990061'
 
 sg = Shotgun(SERVER_PATH, SCRIPT_USER, SCRIPT_KEY)
 
 
 def test():
-    task_id = 560    
+    task_id = 560
     task = sg.find_one("Task", filters=[['id', 'is', task_id]], fields=['id', 'entity'])
 
     event_filter = EventsFilter(sg, task)
