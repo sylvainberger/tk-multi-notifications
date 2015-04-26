@@ -97,6 +97,7 @@ class TankNotificationWidget(QtGui.QWidget):
         self._timer_delay = 5000
         self._active = False
         self.parent = parent
+        self._url = self.get_default_url()
         self._event_filter = event_filter
         self._message_displaying = False
         self.create_layout()
@@ -168,6 +169,7 @@ class TankNotificationWidget(QtGui.QWidget):
         thread = NotificationThread(self)
         # This connection will show a notification message if a notification
         # is found by the thread
+        thread.notification_url.connect(self.set_url)
         thread.notification_message.connect(self.show_message)
         # When the thread is finished, start a new timer that will
         # execute this method again at the end of the timer
@@ -206,10 +208,28 @@ class TankNotificationWidget(QtGui.QWidget):
         self._animgroup.addAnimation(anim)
         self._animgroup.start()
 
+    def get_default_url(self):
+        return self.context.shotgun_url
+
+    @QtCore.Slot(unicode)
+    def set_url(self, url):
+        """ Set the current url to the provided url """
+        if url:
+            self._url = url
+        else:
+            self._url = self.get_default_url()
+        # entity page example
+        # https://sberger.shotgunstudio.com/page/email_link?entity_id=6003&entity_type=Version
+        # Task page example
+        # https://sberger.shotgunstudio.com/page/email_link?entity_id=560&entity_type=Task
+        # Shot page example
+        # https://sberger.shotgunstudio.com/page/email_link?entity_id=860&entity_type=Shot
+        # Note link example
+        # https://sberger.shotgunstudio.com/page/email_link?entity_id=6021&entity_type=Note
+
     def open_shotgun(self):
         """ Open the shotgun website at the current context """
-        url = self.context.shotgun_url
-        QtGui.QDesktopServices.openUrl(QtCore.QUrl(url))
+        QtGui.QDesktopServices.openUrl(QtCore.QUrl(self._url))
 
     def mouseReleaseEvent(self, event):
         """ Close the notification message on right click """
@@ -223,6 +243,7 @@ class TankNotificationWidget(QtGui.QWidget):
 class NotificationThread(QtCore.QThread):
     """  Main thread loop querying Shotgun to get new data to notify"""
     notification_message = QtCore.Signal(unicode)
+    notification_url = QtCore.Signal(unicode)
 
     def __init__(self, parent):
         super(NotificationThread, self).__init__(parent)
@@ -237,19 +258,22 @@ class NotificationThread(QtCore.QThread):
         # Run the event filter
         self.parent._event_filter.run()
         # loop all filters results
-        messages = []
+        notifications = []
         for _filter in self.parent._event_filter.filters():
-            for message in _filter.get_messages():
-                messages.append(message)
+            for notification in _filter.get_notifications():
+                notifications.append(notification)
 
         # Return if we got nothing
-        if not messages:
+        if not notifications:
             return
 
-        print messages
         # Show the message or the number of notification since the last update
-        if len(messages) == 1:
-            msg = messages[0]
+        if len(notifications) == 1:
+            msg = notifications[0].get_message()
+            url = notifications[0].get_url()
         else:
-            msg = '%d new activity in task %s' % (len(messages), self.parent.context.task['name'])
+            msg = '%d new activity in task %s' % (len(notifications), self.parent.context.task['name'])
+            url = ''
+        # Emit the url first because the message emit will show the notification widget
+        self.notification_url.emit(url)
         self.notification_message.emit(msg)

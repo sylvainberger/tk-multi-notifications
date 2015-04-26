@@ -9,6 +9,33 @@ def log(msg):
     print time.strftime("%Y/%m/%d %H:%M:%S", time.localtime()) +": "+msg
 
 
+class Notification(object):
+    """ Notification class holding the message, url, etc """
+    def __init__(self, message, url, details=''):
+        super(Notification, self).__init__()
+        self._message = message
+        self._url = url
+        self._details = details
+
+    def set_message(self, message):
+        self._message = message
+
+    def get_message(self):
+        return self._message
+
+    def set_url(self, url):
+        self._url = url
+
+    def get_url(self):
+        return self._url
+
+    def set_details(self, details):
+        self._details = details
+
+    def get_details(self, details):
+        return self._details
+
+
 class EventsFilter(object):
     """ Class used to """
     def __init__(self, shotgun_api, task=None, filter_classes=[]):
@@ -83,14 +110,20 @@ class EventFilterBase(object):
         self.events = self._find()
         return True if self.events else False
 
-    def get_messages(self):
-        """ Return a lis of notification message for every events found """
-        messages = []
-        for event in self.events:
-            messages.append(self._message(event))
-        return messages
+    def get_url(self, entity):
+        url = ''
+        if entity is not None:
+            url = 'https://%s/page/email_link/?entity_id=%d&entity_type=%s' % (self.sg.config.server, entity['id'], entity['type'])
+        return url
 
-    def _message(self, event):
+    def get_notifications(self):
+        """ Return a lis of notification message for every events found """
+        notifications = []
+        for event in self.events:
+            notifications.append(self._notification(event))
+        return notifications
+
+    def _notification(self, event):
         """ build the message list for every event """
         raise NotImplementedError()
 
@@ -129,12 +162,12 @@ class TaskStatusChangedFilter(EventFilterBase):
             events_data.append((event, status))
         return events_data
 
-    def _message(self, event_data):
+    def _notification(self, event_data):
         """ build the message for the provided event """
         # extract the event and the status from the tuple
         event, status = event_data
         message = 'Status of task %s %s changed to %s' % (self.task['entity']['name'], event['entity']['name'], status)
-        return message
+        return Notification(message, self.get_url(self.task))
 
 
 class NewPublishFilter(EventFilterBase):
@@ -160,7 +193,7 @@ class NewPublishFilter(EventFilterBase):
                 events_data.append((event, publish))
         return events_data
 
-    def _message(self, event_data):
+    def _notification(self, event_data):
         """ build the message for the provided event """
         event, publish = event_data
         publish_type = publish['published_file_type']
@@ -169,7 +202,7 @@ class NewPublishFilter(EventFilterBase):
             message = 'A new %s "%s" was published for entity %s' % (publish_type['name'], publish['code'], entity_name)
         else:
             message = 'A new element "%s" was published for entity %s' % (publish['code'], entity_name)
-        return message
+        return Notification(message, self.get_url(publish))
 
 
 class NewNoteFilter(EventFilterBase):
@@ -196,7 +229,7 @@ class NewNoteFilter(EventFilterBase):
             events_data.append((event, note))
         return events_data
 
-    def _message(self, event_data):
+    def _notification(self, event_data):
         """ build the message for the provided event """
         event, note = event_data
         user = note['user']['name']
@@ -204,4 +237,4 @@ class NewNoteFilter(EventFilterBase):
         if isinstance(note_link, list):
             note_link = note_link[-1]['name']
         message = 'A new note by %s was added on %s' % (user, note_link)
-        return message
+        return Notification(message, self.get_url(note))

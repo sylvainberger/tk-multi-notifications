@@ -35,9 +35,10 @@ def test():
     event_filter.run()
     print '-' * 100
     for f in event_filter.filters():
-        for m in f.get_messages():
+        for n in f.get_notifications():
             print '--'
-            print m
+            print n.get_message()
+            print n.get_url()
 
 if __name__ == '__main__':
     test()
