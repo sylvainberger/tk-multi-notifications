@@ -52,6 +52,8 @@ class EventsFilter(object):
 
 class EventFilterBase(object):
     """ Base class for filtering a shotgun event """
+    event_type = ''
+
     def __init__(self, shotgun_api, task, last_event_id):
         super(EventFilterBase, self).__init__()
         self.sg = shotgun_api
@@ -64,6 +66,18 @@ class EventFilterBase(object):
 
     def _find(self):
         raise NotImplementedError()
+
+    def _find_events(self):
+        """ Find all event of the type stored in the class """
+        events = self.sg.find('EventLogEntry',
+                                filters=[
+                                    ['event_type', 'is', self.event_type],
+                                    ['id', 'greater_than', self.last_event_id],
+                                ],
+                                fields=['id', 'event_type', 'attribute_name', 'meta', 'entity'], 
+                                order=[{'column':'created_at', 'direction':'asc'}], 
+                                filter_operator='all')
+        return events
 
     def find(self):
         self.events = self._find()
@@ -82,7 +96,9 @@ class EventFilterBase(object):
 
 
 class TaskStatusChangedFilter(EventFilterBase):
-    """docstring for TaskStatusChangedFilter"""
+    """ Filter current task status changed """
+    event_type = 'Shotgun_Task_Change'
+
     def __init__(self, *args, **kwargs):
         super(TaskStatusChangedFilter, self).__init__(*args, **kwargs)
         self.statuses = None
@@ -103,19 +119,11 @@ class TaskStatusChangedFilter(EventFilterBase):
         """ Find all the valid events """
         # Get all thes statuses 
         self.get_statuses()
-        events = self.sg.find("EventLogEntry",
-                                    filters=[
-                                        ['id', 'greater_than', self.last_event_id], 
-                                        ['event_type', 'is', 'Shotgun_Task_Change'],
-                                        ['entity', 'is', { "type": "Task", "id": self.task['id'] }],
-                                        ['attribute_name', 'is', 'sg_status_list'],
-                                    ], 
-                                    fields=['id','event_type','attribute_name','meta','entity'], 
-                                    order=[{'column':'created_at','direction':'asc'}],
-                                    filter_operator='all')
         # Store the event and the status
         events_data = []
-        for event in events:
+        for event in self._find_events():
+            if event['attribute_name'] != 'sg_status_list':
+                continue
             # Get the status
             status = self.get_status_from_code(event['meta']['new_value'])
             events_data.append((event, status))
@@ -126,12 +134,13 @@ class TaskStatusChangedFilter(EventFilterBase):
         # extract the event and the status from the tuple
         event, status = event_data
         message = 'Status of task %s %s changed to %s' % (self.task['entity']['name'], event['entity']['name'], status)
-        print 'Message:', message
         return message
         
 
 class NewPublishFilter(EventFilterBase):
-    """docstring for TaskStatusChanged"""
+    """ Filter new publishes linked to the current task """
+    event_type = 'Shotgun_PublishedFile_New'
+
     def __init__(self, *args, **kwargs):
         super(NewPublishFilter, self).__init__(*args, **kwargs)
         self.statuses = None
@@ -139,21 +148,14 @@ class NewPublishFilter(EventFilterBase):
     def _find(self):
         """ Find all the valid events """
         events_data = []
-        for event in self.sg.find("EventLogEntry",
-                                filters=[
-                                    ['id', 'greater_than', self.last_event_id],
-                                    ['event_type', 'is', 'Shotgun_PublishedFile_New'],
-                                ],
-                                fields=['id','event_type','attribute_name','meta','entity'], 
-                                order=[{'column':'created_at','direction':'asc'}], 
-                                filter_operator='all'):
+        for event in self._find_events():
             # Find the matching publish document
             publish = self.sg.find_one("PublishedFile",
                                     filters=[['id', 'is', event['entity']['id']]],
                                     fields=['id','published_file_type', 'code', 'entity'], 
                                     filter_operator='all',                                
                                  )
-            # Only keep the event if entity linked to the publish match the current task entity link
+            # Only keep the publish if it is linked to the task or the task entity 
             if publish['entity'] and publish['entity']['id'] == self.task['entity']['id']:
                 events_data.append((event, publish))
         return events_data
@@ -166,7 +168,8 @@ class NewPublishFilter(EventFilterBase):
         if publish_type is not None:
             message = 'A new %s "%s" was published for entity %s' % (publish_type['name'], publish['code'], entity_name)    
         else:
-            message = 'A new element %s was published for entity %s' % (publish['code'], entity_name)
+            message = 'A new element "%s" was published for entity %s' % (publish['code'], entity_name)
+        return message
         return message
         
 
