@@ -14,6 +14,7 @@ from shotgun_api3 import Shotgun
 from events_filter import EventsFilter
 from events_filter import TaskStatusChangedFilter
 from events_filter import NewPublishFilter
+from events_filter import NewNoteFilter
 
 SERVER_PATH = 'https://sberger.shotgunstudio.com' # make sure to change this to https if your studio uses it.
 SCRIPT_USER = 'Sandbox'     
@@ -30,7 +31,9 @@ def test():
     event_filter.last_event_id = 239000
     event_filter.add_filter(TaskStatusChangedFilter)
     event_filter.add_filter(NewPublishFilter)
+    event_filter.add_filter(NewNoteFilter)
     event_filter.run()
+    print '-' * 100
     for f in event_filter.filters():
         for m in f.get_messages():
             print '--'
