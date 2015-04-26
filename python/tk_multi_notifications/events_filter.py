@@ -36,7 +36,7 @@ class EventsFilter(object):
 
     def get_last_event_id(self):
         """ Get the last event id from the event table """
-        result = self.sg.find_one("EventLogEntry",filters=[], fields=['id'], order=[{'column':'created_at','direction':'desc'}])    
+        result = self.sg.find_one('EventLogEntry', filters=[], fields=['id'], order=[{'column':'id', 'direction':'desc'}])    
         self.last_event_id = result['id']
 
     def run(self):
